@@ -17,6 +17,7 @@ app = Flask(__name__)
 # Hanya frontend tepercaya yang boleh memanggil API ini dari browser.
 ALLOWED_ORIGINS = {
     "https://lab.vulpfest.com",
+    "https://scamcheck-ruby.vercel.app",
     "https://scamcheck-web.vercel.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
