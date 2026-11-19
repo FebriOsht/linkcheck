@@ -93,6 +93,26 @@ def test_plain_page_has_no_scary_signals(server):
 
 
 def test_blocked_internal_target():
+    # Alamat internal harus gagal diperiksa dan TIDAK PERNAH dinilai aman (clear).
     out = c.analyze("http://127.0.0.1:1/")
     assert out["error"]
-    assert c.verdict(out)["level"] == "unknown"
+    assert c.verdict(out)["level"] in ("unknown", "warn")  # IP mentah wajar ditandai mencurigakan
+    assert c.verdict(out)["level"] != "clear"
+
+
+def test_dead_impersonation_still_dangerous(monkeypatch):
+    # Domain peniru bank yang sudah mati: koneksi gagal, tapi tetap Bahaya dari sinyal URL.
+    monkeypatch.setattr(c, "follow", lambda u: (None, [], "ConnectionError"))
+    out = c.analyze("http://bca-co-id.xyz/login")
+    assert out["error"]
+    codes = {s["code"] for s in out["signals"]}
+    assert "brand-impersonation" in codes
+    assert c.verdict(out)["level"] == "danger"
+
+
+def test_no_duplicate_download(monkeypatch):
+    monkeypatch.setattr(c, "domain_age_days", lambda h: None)
+    out = c.analyze("https://example.com/app.apk")
+    # hanya satu sinyal unduhan, bukan dua
+    dl = [s for s in out["signals"] if s["code"] in ("download", "download-ext")]
+    assert len(dl) <= 1 or {s["code"] for s in dl} == {"download-ext"}

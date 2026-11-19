@@ -192,8 +192,6 @@ def analyze(raw_url):
         out["signals"].append({"level": level, "code": code, **extra})
 
     # --- sinyal dari URL mentah, tanpa koneksi ---
-    if p0.scheme == "http":
-        sig("info", "no-https")
     if "@" in (p0.netloc or ""):
         sig("danger", "at-symbol")
     if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", host0 or ""):
@@ -215,7 +213,7 @@ def analyze(raw_url):
     out["chain"] = chain
     if err:
         out["error"] = err
-        return out
+        return out  # sinyal URL (mis. peniru merek) sudah terkumpul di atas dan tetap dinilai
     out["final_url"] = resp.url
     pf = urlparse(resp.url)
     host_f = (pf.hostname or "").lower()
@@ -226,7 +224,7 @@ def analyze(raw_url):
         sig("info", "redirects-elsewhere", to=host_f)
 
     dk = download_kind(resp, resp.url)
-    if dk:
+    if dk and not any(x["code"] == "download-ext" for x in out["signals"]):
         sig("danger", "download", kind=dk)
 
     impf = brand_impersonation(host_f, resp.url)
@@ -247,16 +245,14 @@ def analyze(raw_url):
         elif age <= 180:
             sig("info", "youngish-domain", days=age)
 
-    if pf.scheme == "http":
-        if not any(s["code"] == "no-https" for s in out["signals"]):
-            sig("info", "no-https")
     return out
 
 
 def verdict(result):
     """Tiga tingkat jujur dari sinyal. Tidak pernah menyatakan 'aman'."""
-    if result.get("error"):
-        return {"level": "unknown", "signals": result.get("signals", [])}
+    sigs = result.get("signals", [])
+    if result.get("error") and not any(s["level"] in ("danger", "warn") for s in sigs):
+        return {"level": "unknown", "signals": sigs}
     levels = [s["level"] for s in result["signals"]]
     danger = levels.count("danger")
     warn = levels.count("warn")
